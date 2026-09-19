@@ -4,7 +4,8 @@ import { fromCSV, toCSV } from '../csv';
 import { bulkImport, bulkImportRecurring, clearAll, countAll, deleteRecurring, deleteUserRule, getSetting, listAll, listRecurring, listUserRules, setSetting, updateRecurring } from '../db';
 import { describeRule, friendlyOccurrence, nextOccurrence } from '../recurring';
 import { formatTWD } from '../stats';
-import { getCategories, h, toast, todayStr, type CustomCategory } from './common';
+import type { RecurringRule } from '../types';
+import { categorySelect, getCategories, h, toast, todayStr, type CustomCategory } from './common';
 
 const APP_VERSION = '0.3.0';
 
@@ -26,33 +27,115 @@ export async function renderSettings(root: HTMLElement): Promise<void> {
   const total = await countAll();
 
   // ---- 週期規則 ----
+  const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
+
+  // 就地編輯：保留規則 id 與補記進度，只改內容
+  function ruleItem(r: RecurringRule): HTMLElement {
+    const li = h('li', { className: 'tx-item', style: r.active ? '' : 'opacity:.55' });
+    const view = () => {
+      const cat = categories.find((c) => c.key === r.category);
+      const next = r.active ? friendlyOccurrence(nextOccurrence(r, todayStr())) : '已暫停';
+      li.replaceChildren(
+        h('div', { className: 'tx-main' },
+          h('span', { className: 'tx-note' }, `🔁 ${describeRule(r)} · ${cat?.emoji ?? ''} ${r.note || cat?.label || r.category}`),
+          h('span', { className: 'tx-meta' }, `${r.type === 'income' ? '+' : '−'}${formatTWD(r.amount)} · 下次 ${next}`),
+        ),
+        h('div', { className: 'tx-actions' },
+          h('button', { className: 'btn', type: 'button', 'aria-label': '編輯', onClick: edit }, '改'),
+          h('button', { className: 'btn', type: 'button', onClick: async () => {
+            if (r.id == null) return;
+            await updateRecurring(r.id, { active: !r.active });
+            toast(r.active ? '已暫停' : '已啟用');
+            await renderSettings(root);
+          } }, r.active ? '暫停' : '啟用'),
+          h('button', { className: 'btn', type: 'button', 'aria-label': '刪除', onClick: async () => {
+            if (r.id == null) return;
+            if (!confirm(`刪除規則「${describeRule(r)} ${r.note} ${formatTWD(r.amount)}」？已經記進去的筆數會留著。`)) return;
+            await deleteRecurring(r.id);
+            toast('已刪除規則');
+            await renderSettings(root);
+          } }, '刪'),
+        ),
+      );
+    };
+    const edit = () => {
+      const freqSel = h('select');
+      for (const [v, label] of [['daily', '每天'], ['weekly', '每週'], ['monthly', '每月'], ['yearly', '每年']] as const) {
+        const o = h('option', { value: v }, label);
+        if (v === r.freq) o.selected = true;
+        freqSel.append(o);
+      }
+      const dowSel = h('select');
+      WEEKDAYS.forEach((w, i) => { const o = h('option', { value: String(i) }, `週${w}`); if (i === (r.dayOfWeek ?? 1)) o.selected = true; dowSel.append(o); });
+      const domInput = h('input', { type: 'number', inputmode: 'numeric', min: '1', max: '31', step: '1', value: String(r.dayOfMonth ?? 1) });
+      const monthInput = h('input', { type: 'number', inputmode: 'numeric', min: '1', max: '12', step: '1', value: String(r.month ?? 1) });
+      const dayInput = h('input', { type: 'number', inputmode: 'numeric', min: '1', max: '31', step: '1', value: String(r.day ?? 1) });
+      const typeSel = h('select');
+      typeSel.append(h('option', { value: 'expense' }, '支出'), h('option', { value: 'income' }, '收入'));
+      typeSel.value = r.type;
+      const amountInput = h('input', { type: 'number', inputmode: 'numeric', min: '1', step: '1', value: String(r.amount) });
+      const catSel = categorySelect(categories, r.category);
+      const noteInput = h('input', { type: 'text', value: r.note });
+
+      const whenBox = h('div');
+      const paintWhen = () => {
+        const f = freqSel.value;
+        whenBox.replaceChildren(
+          f === 'weekly' ? h('div', {}, h('label', {}, '星期幾'), dowSel)
+          : f === 'monthly' ? h('div', {}, h('label', {}, '每月幾號（31 = 月底）'), domInput)
+          : f === 'yearly' ? h('div', { className: 'grid-2' }, h('div', {}, h('label', {}, '月'), monthInput), h('div', {}, h('label', {}, '日'), dayInput))
+          : h('p', { className: 'hint', style: 'margin:0' }, '每天都記一筆'),
+        );
+      };
+      freqSel.addEventListener('change', paintWhen);
+      paintWhen();
+
+      li.replaceChildren(
+        h('div', { className: 'tx-edit' },
+          h('div', { className: 'grid-2' },
+            h('div', {}, h('label', {}, '週期'), freqSel),
+            whenBox,
+            h('div', {}, h('label', {}, '收支'), typeSel),
+            h('div', {}, h('label', {}, '金額'), amountInput),
+            h('div', {}, h('label', {}, '分類'), catSel),
+            h('div', {}, h('label', {}, '備註'), noteInput),
+          ),
+          h('div', { className: 'btn-row' },
+            h('button', { className: 'btn primary', type: 'button', onClick: async () => {
+              if (r.id == null) return;
+              const freq = freqSel.value as RecurringRule['freq'];
+              // 換週期時把不相干的欄位清掉，validateRecurringRule 只認對應欄位
+              const patch: Partial<RecurringRule> = {
+                freq,
+                dayOfWeek: freq === 'weekly' ? Number(dowSel.value) : undefined,
+                dayOfMonth: freq === 'monthly' ? Number(domInput.value) : undefined,
+                month: freq === 'yearly' ? Number(monthInput.value) : undefined,
+                day: freq === 'yearly' ? Number(dayInput.value) : undefined,
+                type: typeSel.value as RecurringRule['type'],
+                amount: Number(amountInput.value),
+                category: catSel.value,
+                note: noteInput.value.trim(),
+              };
+              try {
+                await updateRecurring(r.id, patch);
+                toast('已更新規則');
+                await renderSettings(root);
+              } catch (e) {
+                toast((e as Error).message, 3500);
+              }
+            } }, '儲存'),
+            h('button', { className: 'btn', type: 'button', onClick: view }, '取消'),
+          ),
+        ),
+      );
+    };
+    view();
+    return li;
+  }
+
   const recurringList = recurring.length === 0
     ? h('p', { className: 'muted small', style: 'margin:0' }, '在「記一筆」打「每月 1 號 房租 18500」「每週一 健身 300」「每天 咖啡 65」就會建立。')
-    : h('ul', { className: 'tx-list' }, ...recurring.map((r) => {
-        const cat = categories.find((c) => c.key === r.category);
-        const next = r.active ? friendlyOccurrence(nextOccurrence(r, todayStr())) : '已暫停';
-        return h('li', { className: 'tx-item', style: r.active ? '' : 'opacity:.55' },
-          h('div', { className: 'tx-main' },
-            h('span', { className: 'tx-note' }, `🔁 ${describeRule(r)} · ${cat?.emoji ?? ''} ${r.note || cat?.label || r.category}`),
-            h('span', { className: 'tx-meta' }, `${r.type === 'income' ? '+' : '−'}${formatTWD(r.amount)} · 下次 ${next}`),
-          ),
-          h('div', { className: 'tx-actions' },
-            h('button', { className: 'btn', type: 'button', onClick: async () => {
-              if (r.id == null) return;
-              await updateRecurring(r.id, { active: !r.active });
-              toast(r.active ? '已暫停' : '已啟用');
-              await renderSettings(root);
-            } }, r.active ? '暫停' : '啟用'),
-            h('button', { className: 'btn', type: 'button', 'aria-label': '刪除', onClick: async () => {
-              if (r.id == null) return;
-              if (!confirm(`刪除規則「${describeRule(r)} ${r.note} ${formatTWD(r.amount)}」？已經記進去的筆數會留著。`)) return;
-              await deleteRecurring(r.id);
-              toast('已刪除規則');
-              await renderSettings(root);
-            } }, '刪'),
-          ),
-        );
-      }));
+    : h('ul', { className: 'tx-list' }, ...recurring.map(ruleItem));
 
   function exportRules(): void {
     if (recurring.length === 0) { toast('沒有規則可匯出'); return; }
@@ -172,7 +255,7 @@ export async function renderSettings(root: HTMLElement): Promise<void> {
         h('button', { className: 'btn', type: 'button', onClick: () => rulesFileInput.click() }, '⬆️ 匯入規則 JSON'),
       ),
       rulesFileInput,
-      h('p', { className: 'hint' }, '每次開啟 App 會自動把到期的規則記進去，兩個月沒開也會補齊。要改規則：刪掉重打一句。規則不在 CSV 裡，換手機請另外匯出 JSON。'),
+      h('p', { className: 'hint' }, '每次開啟 App 會自動把到期的規則記進去，兩個月沒開也會補齊。要改規則按「改」。規則不在 CSV 裡，換手機請另外匯出 JSON。'),
     ),
     h('div', { className: 'card' },
       h('h2', {}, '自訂分類'),
