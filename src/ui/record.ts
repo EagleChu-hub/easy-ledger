@@ -1,7 +1,8 @@
 // 記一筆：輸入 → 一句話解析預覽 → 存起來（存檔鍵固定在鍵盤上方）
 import { categoryLabel, findCategory } from '../categories';
-import { addTransaction, deleteTransaction, listAll, listUserRules, upsertUserRule } from '../db';
+import { addRecurring, addTransaction, applyDueRecurring, deleteTransaction, listAll, listUserRules, upsertUserRule } from '../db';
 import { parseTransaction, type ParsedTransaction } from '../parser';
+import { describeRule, friendlyOccurrence, nextOccurrence, parseRecurring, type RecurringDraft } from '../recurring';
 import { formatTWD } from '../stats';
 import { getCategories, h, toast, todayStr } from './common';
 
@@ -17,6 +18,9 @@ function friendlyDate(iso: string): string {
   const today = todayStr();
   if (iso === today) return '今天';
   if (iso === shiftDay(today, -1)) return '昨天';
+  if (iso === shiftDay(today, -2)) return '前天';
+  if (iso === shiftDay(today, 1)) return '明天';
+  if (iso === shiftDay(today, 2)) return '後天';
   const [, m, d] = iso.split('-');
   return `${Number(m)}/${Number(d)}`;
 }
@@ -26,6 +30,7 @@ export async function renderRecord(root: HTMLElement): Promise<void> {
   const pickable = categories.filter((c) => c.key !== 'income');
   let userRules = await listUserRules();
   let parsed: ParsedTransaction | undefined;
+  let recurring: RecurringDraft | undefined; // 有值 = 這句是週期規則
   let picked: string | null = null;
   let typeVal: 'expense' | 'income' = 'expense';
 
@@ -47,6 +52,7 @@ export async function renderRecord(root: HTMLElement): Promise<void> {
   const dateInput = h('input', { type: 'date' });
   const dateText = h('span', {}, '今天');
   const dateToken = h('label', { className: 'token token-date' }, dateText, dateInput);
+  const recurToken = h('span', { className: 'token token-recur', hidden: true }, '🔁 每月 1 號');
   const verb = h('span', { className: 'sep' }, '花了');
   const catToken = h('button', { type: 'button', className: 'token' }, '？分類');
   const noteInput = h('input', { type: 'text', className: 'token token-note', placeholder: '品項' });
@@ -61,7 +67,7 @@ export async function renderRecord(root: HTMLElement): Promise<void> {
     flag,
     h('div', { className: 'preview-body' },
       h('div', { className: 'preview-top' },
-        h('div', { className: 'sentence' }, dateToken, ' ', verb, ' ', catToken, h('span', { className: 'sep' }, '，記為'), ' ', noteInput),
+        h('div', { className: 'sentence' }, recurToken, dateToken, ' ', verb, ' ', catToken, h('span', { className: 'sep' }, '，記為'), ' ', noteInput),
         amountBlock,
       ),
       catGrid,
@@ -107,7 +113,12 @@ export async function renderRecord(root: HTMLElement): Promise<void> {
     const ready = !!parsed && !low && Number(amountInput.value) > 0;
     saveBtn.disabled = !ready;
     saveBtn.classList.toggle('locked', low);
-    saveBtn.textContent = !parsed ? '打一句就能記帳' : low ? '選好分類才能存' : '存起來';
+    saveBtn.textContent = !parsed ? '打一句就能記帳' : low ? '選好分類才能存' : recurring ? '建立週期規則' : '存起來';
+  }
+
+  function nextDateText(): string {
+    if (!recurring) return '';
+    return friendlyOccurrence(nextOccurrence(recurring, todayStr()));
   }
 
   function paint(): void {
@@ -129,28 +140,56 @@ export async function renderRecord(root: HTMLElement): Promise<void> {
       b.classList.toggle('selected', b.dataset.key === key);
     }
 
+    // 週期模式：句首顯示「🔁 每月 1 號」，日期 token 換成「起」
+    recurToken.hidden = !recurring;
+    dateToken.hidden = !!recurring;
+    if (recurring) recurToken.textContent = `🔁 ${describeRule(recurring)}`;
+
     hint.textContent = low
       ? '選了之後我會記住這個詞對應的分類，下次自動帶。'
-      : '虛線的字可以直接點著改。';
+      : recurring
+        ? `這是週期規則，每次到日子會自動記一筆。下次：${nextDateText()}`
+        : '虛線的字可以直接點著改。';
     preview.hidden = false;
     paintSaveBtn();
   }
 
+  function showParseError(reason: string): void {
+    parsed = undefined;
+    recurring = undefined;
+    picked = null;
+    preview.hidden = true;
+    paintSaveBtn();
+    if (reason === 'empty') { errorBox.hidden = true; return; }
+    errorBox.textContent = reason === 'no_amount'
+      ? '沒找到金額。請像這樣：「午餐 180」'
+      : '金額看起來不對（要大於 0）。';
+    errorBox.hidden = false;
+  }
+
   function runParse(): void {
-    const r = parseTransaction(input.value, { categories, userRules });
-    if (!r.ok) {
-      parsed = undefined;
-      picked = null;
-      preview.hidden = true;
-      paintSaveBtn();
-      if (r.reason === 'empty') { errorBox.hidden = true; return; }
-      errorBox.textContent = r.reason === 'no_amount'
-        ? '沒找到金額。請像這樣：「午餐 180」'
-        : '金額看起來不對（要大於 0）。';
-      errorBox.hidden = false;
+    // 先試週期句：「每月 1 號 房租 18500」「每週一 健身 300」
+    const rec = parseRecurring(input.value, { categories, userRules });
+    if (rec.ok) {
+      recurring = rec.draft;
+      parsed = {
+        date: todayStr(),
+        type: rec.draft.type,
+        amount: rec.draft.amount,
+        category: rec.draft.category,
+        note: rec.draft.note,
+        confidence: rec.draft.confidence,
+        rawInput: input.value,
+      };
+    } else if (rec.reason !== 'not_recurring') {
+      showParseError(rec.reason);
       return;
+    } else {
+      recurring = undefined;
+      const r = parseTransaction(input.value, { categories, userRules });
+      if (!r.ok) { showParseError(r.reason); return; }
+      parsed = r.value;
     }
-    parsed = r.value;
     errorBox.hidden = true;
     typeVal = parsed.type;
     dateInput.value = parsed.date;
@@ -168,23 +207,32 @@ export async function renderRecord(root: HTMLElement): Promise<void> {
     const category = typeVal === 'income' ? 'income' : currentCategory();
     const note = noteInput.value.trim();
     try {
-      await addTransaction({
-        date: dateInput.value,
-        type: typeVal,
-        amount,
-        category,
-        note,
-        rawInput: parsed.rawInput,
-      });
+      const cat = findCategory(category, categories);
+      if (recurring) {
+        const { confidence: _c, ...draft } = recurring;
+        await addRecurring({ ...draft, type: typeVal, amount, category, note });
+        const n = await applyDueRecurring(); // 今天就是發生日的話，立刻記一筆
+        const next = nextDateText();
+        toast(`已建立 🔁 ${describeRule(recurring)} ${note || cat?.label} ${formatTWD(amount)}${n > 0 ? '，今天已記一筆' : `，下次 ${next}`}`, 3500);
+      } else {
+        await addTransaction({
+          date: dateInput.value,
+          type: typeVal,
+          amount,
+          category,
+          note,
+          rawInput: parsed.rawInput,
+        });
+        toast(`已記錄 ${cat?.emoji ?? ''} ${note || cat?.label} ${formatTWD(amount)} 元`);
+      }
       // 使用者改了分類 → 記住這個備註對應的分類，下次自動套用
       if (category !== parsed.category && note && typeVal === 'expense') {
         await upsertUserRule(note, category);
         userRules = await listUserRules();
       }
-      const cat = findCategory(category, categories);
-      toast(`已記錄 ${cat?.emoji ?? ''} ${note || cat?.label} ${formatTWD(amount)} 元`);
       input.value = '';
       parsed = undefined;
+      recurring = undefined;
       picked = null;
       typeVal = 'expense';
       preview.hidden = true;
@@ -211,7 +259,7 @@ export async function renderRecord(root: HTMLElement): Promise<void> {
         : h('ul', { className: 'tx-list' }, ...recent.map((t) => h('li', { className: 'tx-item' },
             h('div', { className: 'tx-main' },
               h('span', { className: 'tx-note' }, `${findCategory(t.category, categories)?.emoji ?? ''} ${t.note || categoryLabel(t.category, categories)}`),
-              h('span', { className: 'tx-meta' }, `${friendlyDate(t.date)} · ${categoryLabel(t.category, categories)}`),
+              h('span', { className: 'tx-meta' }, `${t.recurringId != null ? '🔁 ' : ''}${friendlyDate(t.date)} · ${categoryLabel(t.category, categories)}`),
             ),
             h('div', { className: 'tx-actions' },
               h('span', { className: `amount ${t.type}` }, `${t.type === 'income' ? '+' : '−'}${formatTWD(t.amount)}`),

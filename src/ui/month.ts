@@ -71,7 +71,7 @@ export async function renderMonth(root: HTMLElement): Promise<void> {
     const view = () => li.replaceChildren(
       h('div', { className: 'tx-main' },
         h('span', { className: 'tx-note' }, `${findCategory(t.category, categories)?.emoji ?? ''} ${t.note || categoryLabel(t.category, categories)}`),
-        h('span', { className: 'tx-meta' }, `${t.date} · ${categoryLabel(t.category, categories)}`),
+        h('span', { className: 'tx-meta' }, `${t.recurringId != null ? '🔁 ' : ''}${t.date} · ${categoryLabel(t.category, categories)}`),
       ),
       h('div', { className: 'tx-actions' },
         h('span', { className: `amount ${t.type}` }, `${t.type === 'income' ? '+' : '−'}${formatTWD(t.amount)}`),

@@ -1,16 +1,83 @@
 // 設定：自訂分類、學到的規則、CSV 匯出／匯入、清除、隱私說明
 import { categoryLabel } from '../categories';
 import { fromCSV, toCSV } from '../csv';
-import { bulkImport, clearAll, countAll, deleteUserRule, getSetting, listAll, listUserRules, setSetting } from '../db';
-import { getCategories, h, toast, type CustomCategory } from './common';
+import { bulkImport, bulkImportRecurring, clearAll, countAll, deleteRecurring, deleteUserRule, getSetting, listAll, listRecurring, listUserRules, setSetting, updateRecurring } from '../db';
+import { describeRule, friendlyOccurrence, nextOccurrence } from '../recurring';
+import { formatTWD } from '../stats';
+import { getCategories, h, toast, todayStr, type CustomCategory } from './common';
 
-const APP_VERSION = '0.1.0';
+const APP_VERSION = '0.3.0';
+
+function downloadText(filename: string, text: string, mime: string): void {
+  const blob = new Blob([text], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = h('a', { href: url, download: filename });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 
 export async function renderSettings(root: HTMLElement): Promise<void> {
   const categories = await getCategories();
   const rules = await listUserRules();
+  const recurring = await listRecurring();
   const custom = await getSetting<CustomCategory[]>('customCategories', []);
   const total = await countAll();
+
+  // ---- 週期規則 ----
+  const recurringList = recurring.length === 0
+    ? h('p', { className: 'muted small', style: 'margin:0' }, '在「記一筆」打「每月 1 號 房租 18500」「每週一 健身 300」「每天 咖啡 65」就會建立。')
+    : h('ul', { className: 'tx-list' }, ...recurring.map((r) => {
+        const cat = categories.find((c) => c.key === r.category);
+        const next = r.active ? friendlyOccurrence(nextOccurrence(r, todayStr())) : '已暫停';
+        return h('li', { className: 'tx-item', style: r.active ? '' : 'opacity:.55' },
+          h('div', { className: 'tx-main' },
+            h('span', { className: 'tx-note' }, `🔁 ${describeRule(r)} · ${cat?.emoji ?? ''} ${r.note || cat?.label || r.category}`),
+            h('span', { className: 'tx-meta' }, `${r.type === 'income' ? '+' : '−'}${formatTWD(r.amount)} · 下次 ${next}`),
+          ),
+          h('div', { className: 'tx-actions' },
+            h('button', { className: 'btn', type: 'button', onClick: async () => {
+              if (r.id == null) return;
+              await updateRecurring(r.id, { active: !r.active });
+              toast(r.active ? '已暫停' : '已啟用');
+              await renderSettings(root);
+            } }, r.active ? '暫停' : '啟用'),
+            h('button', { className: 'btn', type: 'button', 'aria-label': '刪除', onClick: async () => {
+              if (r.id == null) return;
+              if (!confirm(`刪除規則「${describeRule(r)} ${r.note} ${formatTWD(r.amount)}」？已經記進去的筆數會留著。`)) return;
+              await deleteRecurring(r.id);
+              toast('已刪除規則');
+              await renderSettings(root);
+            } }, '刪'),
+          ),
+        );
+      }));
+
+  function exportRules(): void {
+    if (recurring.length === 0) { toast('沒有規則可匯出'); return; }
+    const rows = recurring.map(({ id: _id, ...r }) => r);
+    downloadText(`easy-ledger-rules-${todayStr()}.json`, JSON.stringify(rows, null, 2), 'application/json');
+    toast(`已匯出 ${rows.length} 條規則`);
+  }
+
+  const rulesFileInput = h('input', { type: 'file', accept: '.json,application/json', hidden: true });
+  rulesFileInput.addEventListener('change', async () => {
+    const f = rulesFileInput.files?.[0];
+    if (!f) return;
+    try {
+      const data = JSON.parse(await f.text());
+      if (!Array.isArray(data)) throw new Error('JSON 最外層必須是陣列');
+      if (!confirm(`要匯入 ${data.length} 條規則嗎？（會加在現有規則後面）`)) return;
+      const n = await bulkImportRecurring(data);
+      toast(`已匯入 ${n} 條規則`);
+      await renderSettings(root);
+    } catch (e) {
+      alert(`匯入失敗：${(e as Error).message}`);
+    } finally {
+      rulesFileInput.value = '';
+    }
+  });
 
   // ---- 自訂分類 ----
   const newCatInput = h('input', { type: 'text', placeholder: '例如：寵物', maxlength: '10' });
@@ -47,13 +114,7 @@ export async function renderSettings(root: HTMLElement): Promise<void> {
   async function exportCSV(): Promise<void> {
     const rows = await listAll();
     if (rows.length === 0) { toast('沒有資料可匯出'); return; }
-    const blob = new Blob([toCSV(rows)], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = h('a', { href: url, download: `easy-ledger-${new Date().toISOString().slice(0, 10)}.csv` });
-    document.body.append(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    downloadText(`easy-ledger-${todayStr()}.csv`, toCSV(rows), 'text/csv;charset=utf-8');
     toast(`已匯出 ${rows.length} 筆`);
   }
 
@@ -77,7 +138,7 @@ export async function renderSettings(root: HTMLElement): Promise<void> {
   });
 
   async function wipe(): Promise<void> {
-    if (!confirm(`確定要刪掉全部 ${total} 筆紀錄與學到的規則嗎？這無法復原。建議先匯出 CSV。`)) return;
+    if (!confirm(`確定要刪掉全部 ${total} 筆紀錄、${recurring.length} 條週期規則與學到的分類規則嗎？這無法復原。建議先匯出 CSV 與規則 JSON。`)) return;
     if (!confirm('再確認一次：真的要清空？')) return;
     await clearAll();
     toast('已清空');
@@ -102,6 +163,16 @@ export async function renderSettings(root: HTMLElement): Promise<void> {
       ),
       fileInput,
       h('p', { className: 'hint' }, 'CSV 可用 Excel / Google 試算表打開。匯入時每一筆都會檢查格式，有錯整批不收。'),
+    ),
+    h('div', { className: 'card' },
+      h('h2', {}, `週期規則 · ${recurring.length}`),
+      recurringList,
+      h('div', { className: 'btn-row' },
+        h('button', { className: 'btn', type: 'button', onClick: exportRules }, '⬇️ 匯出規則 JSON'),
+        h('button', { className: 'btn', type: 'button', onClick: () => rulesFileInput.click() }, '⬆️ 匯入規則 JSON'),
+      ),
+      rulesFileInput,
+      h('p', { className: 'hint' }, '每次開啟 App 會自動把到期的規則記進去，兩個月沒開也會補齊。要改規則：刪掉重打一句。規則不在 CSV 裡，換手機請另外匯出 JSON。'),
     ),
     h('div', { className: 'card' },
       h('h2', {}, '自訂分類'),

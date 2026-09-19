@@ -1,6 +1,7 @@
 // Dexie（IndexedDB）資料層。所有資料只存在使用者瀏覽器。
 import Dexie, { type EntityTable } from 'dexie';
-import { validateTransaction, type Transaction, type UserRule } from './types';
+import { occurrencesBetween } from './recurring';
+import { validateRecurringRule, validateTransaction, type RecurringRule, type Transaction, type UserRule } from './types';
 
 interface Setting {
   key: string;
@@ -11,6 +12,7 @@ export class LedgerDB extends Dexie {
   transactions!: EntityTable<Transaction, 'id'>;
   userRules!: EntityTable<UserRule, 'id'>;
   settings!: EntityTable<Setting, 'key'>;
+  recurring!: EntityTable<RecurringRule, 'id'>;
 
   constructor(name = 'easy-ledger') {
     super(name);
@@ -18,6 +20,13 @@ export class LedgerDB extends Dexie {
       transactions: '++id, date, type, category, createdAt',
       userRules: '++id, &keyword',
       settings: 'key',
+    });
+    // v2：週期規則；transactions 加 recurringId 複合索引供冪等檢查
+    this.version(2).stores({
+      transactions: '++id, date, type, category, createdAt, recurringId, [recurringId+date]',
+      userRules: '++id, &keyword',
+      settings: 'key',
+      recurring: '++id, active',
     });
   }
 }
@@ -76,10 +85,100 @@ export async function bulkImport(rows: unknown[]): Promise<number> {
 }
 
 export async function clearAll(): Promise<void> {
-  await db.transaction('rw', db.transactions, db.userRules, async () => {
+  await db.transaction('rw', db.transactions, db.userRules, db.recurring, async () => {
     await db.transactions.clear();
     await db.userRules.clear();
+    await db.recurring.clear();
   });
+}
+
+// ---- recurring rules ----
+
+function todayISO(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+export async function addRecurring(rule: Omit<RecurringRule, 'id' | 'createdAt' | 'active' | 'startDate'> & Partial<Pick<RecurringRule, 'active' | 'startDate' | 'createdAt'>>): Promise<number> {
+  const valid = validateRecurringRule({
+    ...rule,
+    active: rule.active ?? true,
+    startDate: rule.startDate ?? todayISO(),
+    createdAt: rule.createdAt ?? Date.now(),
+  });
+  const id = await db.recurring.add(valid);
+  return id as number;
+}
+
+export async function listRecurring(): Promise<RecurringRule[]> {
+  const rows = await db.recurring.toArray();
+  return rows.sort((a, b) => a.createdAt - b.createdAt);
+}
+
+export async function updateRecurring(id: number, patch: Partial<RecurringRule>): Promise<void> {
+  const existing = await db.recurring.get(id);
+  if (!existing) throw new Error(`找不到週期規則 #${id}`);
+  const valid = validateRecurringRule({ ...existing, ...patch, id });
+  await db.recurring.put(valid);
+}
+
+export async function deleteRecurring(id: number): Promise<void> {
+  await db.recurring.delete(id);
+}
+
+// 匯入：逐條驗證，壞一條整批不收；一律重新編號
+export async function bulkImportRecurring(rows: unknown[]): Promise<number> {
+  const valid = rows.map((r, i) => {
+    try {
+      const v = validateRecurringRule(r);
+      delete v.id;
+      return v;
+    } catch (e) {
+      throw new Error(`第 ${i + 1} 條：${(e as Error).message}`);
+    }
+  });
+  await db.transaction('rw', db.recurring, async () => {
+    await db.recurring.bulkAdd(valid);
+  });
+  return valid.length;
+}
+
+// 把所有啟用中的規則補記到 today（含）。冪等：同規則同日期已存在就不再新增。
+export async function applyDueRecurring(today = todayISO()): Promise<number> {
+  let added = 0;
+  await db.transaction('rw', db.transactions, db.recurring, async () => {
+    const rules = await db.recurring.toArray();
+    for (const rule of rules) {
+      if (!rule.active || rule.id == null) continue;
+      let from = rule.startDate;
+      if (rule.lastGenerated) {
+        const [y, m, d] = rule.lastGenerated.split('-').map(Number);
+        const next = new Date(y, m - 1, d + 1);
+        const nextISO = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-${String(next.getDate()).padStart(2, '0')}`;
+        if (nextISO > from) from = nextISO;
+      }
+      const dates = occurrencesBetween(rule, from, today);
+      for (const date of dates) {
+        const exists = await db.transactions.where('[recurringId+date]').equals([rule.id, date]).count();
+        if (exists > 0) continue;
+        await db.transactions.add(validateTransaction({
+          date,
+          type: rule.type,
+          amount: rule.amount,
+          category: rule.category,
+          note: rule.note,
+          rawInput: rule.rawInput,
+          createdAt: Date.now(),
+          recurringId: rule.id,
+        }));
+        added += 1;
+      }
+      if (today > (rule.lastGenerated ?? '')) {
+        await db.recurring.update(rule.id, { lastGenerated: today });
+      }
+    }
+  });
+  return added;
 }
 
 // ---- user rules ----

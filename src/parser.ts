@@ -50,6 +50,20 @@ function addDays(d: Date, n: number): Date {
 
 interface DateHit { date: string; token: string }
 
+// 星期幾 → JS getDay()（0 = 週日）
+const WEEKDAY_MAP: Record<string, number> = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 日: 0, 天: 0 };
+
+// 本週一（台灣習慣：週一是一週第一天）
+function mondayOfWeek(d: Date): Date {
+  return addDays(d, -((d.getDay() + 6) % 7));
+}
+
+function addMonths(d: Date, n: number): Date {
+  const r = new Date(d);
+  r.setMonth(r.getMonth() + n);
+  return r;
+}
+
 // 找日期詞；找不到就回 undefined（呼叫端用今天）
 function extractDate(text: string, today: Date): DateHit | undefined {
   const relative: Array<[RegExp, number]> = [
@@ -57,10 +71,38 @@ function extractDate(text: string, today: Date): DateHit | undefined {
     [/前天|前日/, -2],
     [/昨天|昨日|昨晚/, -1],
     [/今天|今日|今晚|剛剛|剛才/, 0],
+    [/明天|明日/, 1],
+    [/大後天/, 3],
+    [/後天/, 2],
   ];
   for (const [re, offset] of relative) {
     const m = text.match(re);
     if (m) return { date: formatDate(addDays(today, offset)), token: m[0] };
+  }
+  // N天前 / N天後
+  const nd = text.match(/(\d{1,3})\s*天\s*(前|後)/);
+  if (nd) {
+    const n = Number(nd[1]) * (nd[2] === '前' ? -1 : 1);
+    return { date: formatDate(addDays(today, n)), token: nd[0] };
+  }
+  // 上週三 / 這週五 / 下週二 / 週三（無前綴 = 最近一次 ≤ 今天）
+  const wk = text.match(/(上上|上|這|本|下下|下)?(週|星期|禮拜)([一二三四五六日天])/);
+  if (wk) {
+    const prefix = wk[1] ?? '';
+    const weekOffset = { 上上: -2, 上: -1, 這: 0, 本: 0, 下: 1, 下下: 2, '': 0 }[prefix] ?? 0;
+    const weekday = WEEKDAY_MAP[wk[3]];
+    let d = addDays(mondayOfWeek(today), weekOffset * 7 + ((weekday + 6) % 7));
+    if (prefix === '' && d > today) d = addDays(d, -7);
+    return { date: formatDate(d), token: wk[0] };
+  }
+  // 上個月 5 號 / 上月 5 號 / 下個月 1 號
+  const mo = text.match(/(上上|上|這|本|下下|下)個?月\s*(\d{1,2})\s*(號|日)/);
+  if (mo) {
+    const monthOffset = { 上上: -2, 上: -1, 這: 0, 本: 0, 下: 1, 下下: 2 }[mo[1]] ?? 0;
+    const day = Number(mo[2]);
+    const base = addMonths(new Date(today.getFullYear(), today.getMonth(), 1), monthOffset);
+    const d = new Date(base.getFullYear(), base.getMonth(), day);
+    if (d.getMonth() === base.getMonth()) return { date: formatDate(d), token: mo[0] };
   }
   // 9/12、09/12、9月12日、9月12
   const md = text.match(/(?<!\d)(\d{1,2})\s*[/月]\s*(\d{1,2})\s*(?:日|號)?(?!\d)/);
