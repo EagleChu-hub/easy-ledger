@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="zh-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#0e100f" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#f5f7f4" media="(prefers-color-scheme: light)" />
+    <meta name="description" content="輕鬆記帳：資料只在你手機、零成本的收支記錄與 AI 分析" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/icon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+TC:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <title>輕鬆記帳</title>
+  </head>
+  <body>
+    <div id="app">
+      <header class="topbar">
+        <h1 id="page-title">記一筆</h1>
+        <div class="topbar-meta" id="topbar-meta"></div>
+      </header>
+      <main id="view" class="view"></main>
+      <div id="dock" class="dock"></div>
+      <nav class="tabbar" aria-label="主選單">
+        <a href="#record" data-tab="record"><span class="tab-icon">✏️</span>記一筆</a>
+        <a href="#month" data-tab="month"><span class="tab-icon">📊</span>本月</a>
+        <a href="#ai" data-tab="ai"><span class="tab-icon">🤖</span>問 AI</a>
+        <a href="#settings" data-tab="settings"><span class="tab-icon">⚙️</span>設定</a>
+      </nav>
+      <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
