@@ -134,30 +134,36 @@ HTML = """
 <p class="sm">「週三」沒有加「上」「下」的時候，是指<b>最近的那個星期三</b>（包含今天）。「下週二」這種還沒到的日子也可以先記，會直接算進那個月。</p>
 
 <div class="pgbrk"></div>
-<h2>第 3 步：每個月都會有的錢（房租、訂閱、薪水）</h2>
-<p>不用每個月手動打。在「記一筆」打一句<b>「每…」開頭</b>的話，它就會自己記：</p>
+<h2>第 3 步：每次都一樣的錢，設一次就好</h2>
+<p>有些錢<b>每個月都一樣</b>，像房租、電話費、薪水。這種不用每次打。</p>
+<p>你只要打一句「<b>每</b>」開頭的話，設定<b>一次</b>，以後時間一到它就<b>自己幫你記</b>。
+就像鬧鐘：設好之後，時間到了它自己會響。</p>
 
 <table class="t">
-<tr><th width="42%%">你打</th><th>它會</th></tr>
-<tr><td class="l"><b class="mono">每月&nbsp;1&nbsp;號&nbsp;房租&nbsp;18500</b></td><td class="l">每個月 1 號自動記一筆房租</td></tr>
-<tr><td class="l"><b class="mono">每月底&nbsp;信用卡&nbsp;5000</b></td><td class="l">每個月最後一天自動記</td></tr>
-<tr><td class="l"><b class="mono">每週一&nbsp;健身&nbsp;300</b></td><td class="l">每個星期一自動記</td></tr>
-<tr><td class="l"><b class="mono">每天&nbsp;咖啡&nbsp;65</b></td><td class="l">每天自動記</td></tr>
-<tr><td class="l"><b class="mono">每年&nbsp;3月15日&nbsp;保險&nbsp;12000</b></td><td class="l">每年 3 月 15 日自動記</td></tr>
-<tr><td class="l"><b class="mono">每月&nbsp;5&nbsp;號&nbsp;薪水&nbsp;52000</b></td><td class="l">每個月 5 號自動記一筆收入</td></tr>
+<tr><th width="42%%">你打（跟平常一樣，在「記一筆」打）</th><th>它以後會</th></tr>
+<tr><td class="l"><b class="mono">每月&nbsp;1&nbsp;號&nbsp;房租&nbsp;18500</b></td><td class="l">每個月的 1 號，自己記一筆「房租 18500」</td></tr>
+<tr><td class="l"><b class="mono">每月底&nbsp;信用卡&nbsp;5000</b></td><td class="l">每個月的最後一天，自己記</td></tr>
+<tr><td class="l"><b class="mono">每週一&nbsp;健身&nbsp;300</b></td><td class="l">每個星期一，自己記</td></tr>
+<tr><td class="l"><b class="mono">每天&nbsp;咖啡&nbsp;65</b></td><td class="l">每天都記</td></tr>
+<tr><td class="l"><b class="mono">每年&nbsp;3月15日&nbsp;保險&nbsp;12000</b></td><td class="l">每年的 3 月 15 日，自己記</td></tr>
+<tr><td class="l"><b class="mono">每月&nbsp;5&nbsp;號&nbsp;薪水&nbsp;52000</b></td><td class="l">每個月的 5 號，自己記一筆「收到的錢」</td></tr>
 </table>
 
-<p>打完會看到「🔁 每月 1 號」和「下次：10/1（週四）」，按鈕變成「<b>建立週期規則</b>」，按下去就好。</p>
+<p>打完之後，句子前面會出現 <b>🔁</b> 這個記號（意思是「會一直重複」），
+下面還會寫「下次：幾月幾號」。按最下面的綠色大按鈕，就設好了。</p>
 
-<div class="grn"><p style="margin:0"><b class="gt">★ 好處</b>：就算你兩個月沒打開 App，下次打開它會自動把這兩個月的都補記上，而且<b>不會重複</b>。
-自動記的那幾筆前面會有 🔁 的記號。</p></div>
+<div class="grn"><p style="margin:0"><b class="gt">★ 很久沒開也沒關係</b><br/>
+就算你一個月都沒打開 App，下次打開，它會把還沒記的<b>全部補上</b>，而且<b>不會多記</b>。<br/>
+它自己記的那幾筆，前面都會有 🔁。</p></div>
 
-<h3>想改、想暫停、想刪掉</h3>
-<p>到「<b>設定</b>」頁，找到「週期規則」那一格，每一條後面有三個按鈕：</p>
-<p class="ck"><span class="cb">□</span>　<b>改</b>：金額漲了、換日子、改分類，直接改，按「儲存」</p>
-<p class="ck"><span class="cb">□</span>　<b>暫停</b>：這陣子先不要自動記（例如出國），之後再按「啟用」</p>
-<p class="ck"><span class="cb">□</span>　<b>刪</b>：以後都不要了。<span class="sm">（之前已經記進去的那幾筆會留著，不會消失）</span></p>
+<h3>設好了，想改、想先停一下、或不要了</h3>
+<p>到「<b>設定</b>」頁，往下找到寫著「<b>週期規則</b>」的那一格（「週期規則」就是你剛剛設的「每…」）。
+每一條旁邊有三個按鈕：</p>
+<p class="ck"><span class="cb">□</span>　<b>改</b>：房租漲了、換日子，按「改」直接把數字改掉，再按「儲存」</p>
+<p class="ck"><span class="cb">□</span>　<b>暫停</b>：先不要自己記（例如這幾個月不去健身）。想再開始，按「啟用」</p>
+<p class="ck"><span class="cb">□</span>　<b>刪</b>：以後都不要了。<span class="sm">（之前已經記進去的那幾筆會留著，不會不見）</span></p>
 
+<div class="pgbrk"></div>
 <h2>第 4 步：看這個月花了多少</h2>
 <p>點下面的「<b>本月</b>」：</p>
 <p class="ck"><span class="cb">□</span>　最上面：收入、支出、剩多少</p>
@@ -185,7 +191,7 @@ HTML = """
 <h3>怎麼備份</h3>
 <p>到「<b>設定</b>」頁：</p>
 <p class="ck"><span class="cb">□</span>　按「<b>⬇️ 匯出 CSV</b>」→ 會存一個檔案到手機（檔名像 easy-ledger-2026-09-20.csv）</p>
-<p class="ck"><span class="cb">□</span>　如果你有設「每月都會有的錢」，再按「<b>⬇️ 匯出規則 JSON</b>」，這是另一個檔案</p>
+<p class="ck"><span class="cb">□</span>　如果你有設第 3 步那種「每…」的，再按「<b>⬇️ 匯出規則 JSON</b>」，這是另一個檔案</p>
 <p class="ck"><span class="cb">□</span>　把這兩個檔案傳到 LINE 給自己、或存到 Google 雲端、iCloud 都可以</p>
 
 <h3>換新手機怎麼把資料搬回來</h3>
@@ -199,8 +205,8 @@ HTML = """
 <tr><th width="38%%">問題</th><th>答案</th></tr>
 <tr><td class="l">它把分類猜錯了怎麼辦？</td><td class="l">存之前點分類那個字改掉；或存了之後到「本月」按「改」。改過一次它就會記住。</td></tr>
 <tr><td class="l">我打「咖啡」它說沒找到金額</td><td class="l">一定要有數字。打「咖啡 65」。</td></tr>
-<tr><td class="l">自動記的房租我想刪掉這一次</td><td class="l">到「本月」找到那筆按「刪」。只會刪這一次，下個月還是會記。</td></tr>
-<tr><td class="l">想把整條「每月房租」都停掉</td><td class="l">「設定」→ 週期規則 → 按「暫停」或「刪」。</td></tr>
+<tr><td class="l">它自己記的房租，我只想刪掉這一次</td><td class="l">到「本月」找到那一筆，按「刪」。只會刪這一次，下個月還是會自己記。</td></tr>
+<tr><td class="l">以後都不要它自己記房租了</td><td class="l">到「設定」→ 找到「週期規則」→ 按「暫停」或「刪」。</td></tr>
 <tr><td class="l">要付錢嗎？要註冊嗎？</td><td class="l"><b class="gt">都不用。</b>沒有帳號、沒有付費、沒有廣告。</td></tr>
 <tr><td class="l">別人看得到我的帳嗎？</td><td class="l">看不到。資料沒有離開你的手機。</td></tr>
 <tr><td class="l">可以給家人朋友用嗎？</td><td class="l">可以，把網址傳給他就好。他的資料在他的手機，跟你的不會混在一起。</td></tr>
@@ -209,7 +215,7 @@ HTML = """
 
 <div class="grn"><p style="margin:0"><b class="gt">★ 記得就好的三件事</b><br/>
 1. 花錢就打一句「東西&nbsp;多少錢」。<br/>
-2. 每個月都有的，用「每月&nbsp;幾號&nbsp;東西&nbsp;多少錢」設一次。<br/>
+2. 每個月都一樣的錢，打「每月&nbsp;幾號&nbsp;東西&nbsp;多少錢」，設一次就好。<br/>
 3. 每個月「設定 → 匯出 CSV」備份一次。</p></div>
 
 <p class="foot">輕鬆記帳 easy-ledger v0.3　│　%(url)s　│　原始碼：github.com/EagleChu-hub/easy-ledger</p>
