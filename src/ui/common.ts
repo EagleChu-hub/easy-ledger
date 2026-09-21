@@ -39,6 +39,15 @@ export function toast(msg: string, ms = 2200): void {
   toastTimer = window.setTimeout(() => { t.hidden = true; }, ms);
 }
 
+// 字體大小：只放大文字（rem），版面間距不動；存在 settings 表 fontScale
+export const FONT_SCALE_MIN = 0.85;
+export const FONT_SCALE_MAX = 1.6;
+export const FONT_SCALE_DEFAULT = 1;
+export function applyFontScale(scale: number): void {
+  const s = Math.min(FONT_SCALE_MAX, Math.max(FONT_SCALE_MIN, Number(scale) || FONT_SCALE_DEFAULT));
+  document.documentElement.style.setProperty('--fs', `${16 * s}px`);
+}
+
 export interface CustomCategory { key: string; label: string }
 
 // 預設分類 + 使用者自訂分類（自訂的沒有關鍵字，靠 userRules 對應）

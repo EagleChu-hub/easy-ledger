@@ -1,12 +1,12 @@
 import './style.css';
 import { registerSW } from 'virtual:pwa-register';
-import { applyDueRecurring, listByMonth } from './db';
+import { applyDueRecurring, getSetting, listByMonth } from './db';
 import { formatTWD, summarizeMonth } from './stats';
 import { renderAI } from './ui/ai';
 import { renderMonth } from './ui/month';
 import { renderRecord } from './ui/record';
 import { renderSettings } from './ui/settings';
-import { currentMonth, toast } from './ui/common';
+import { applyFontScale, currentMonth, FONT_SCALE_DEFAULT, toast } from './ui/common';
 
 type Tab = 'record' | 'month' | 'ai' | 'settings';
 
@@ -76,7 +76,11 @@ async function runRecurring(): Promise<void> {
 window.addEventListener('hashchange', () => { void route(); });
 window.addEventListener('ledger:changed', () => { void paintTopbarMeta(); });
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') void runRecurring(); });
-void (async () => { await runRecurring(); await route(); })();
+void (async () => {
+  applyFontScale(await getSetting<number>('fontScale', FONT_SCALE_DEFAULT)); // 先套字級，畫面一出來就是使用者選的大小
+  await runRecurring();
+  await route();
+})();
 
 // PWA：有新版本時自動更新
 registerSW({ immediate: true });

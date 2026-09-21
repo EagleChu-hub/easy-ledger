@@ -5,9 +5,9 @@ import { bulkImport, bulkImportRecurring, clearAll, countAll, deleteRecurring, d
 import { describeRule, friendlyOccurrence, nextOccurrence } from '../recurring';
 import { formatTWD } from '../stats';
 import type { RecurringRule } from '../types';
-import { categorySelect, getCategories, h, toast, todayStr, type CustomCategory } from './common';
+import { applyFontScale, categorySelect, FONT_SCALE_DEFAULT, FONT_SCALE_MAX, FONT_SCALE_MIN, getCategories, h, toast, todayStr, type CustomCategory } from './common';
 
-const APP_VERSION = '0.3.2';
+const APP_VERSION = '0.3.3';
 
 function downloadText(filename: string, text: string, mime: string): void {
   const blob = new Blob([text], { type: mime });
@@ -25,6 +25,14 @@ export async function renderSettings(root: HTMLElement): Promise<void> {
   const recurring = await listRecurring();
   const custom = await getSetting<CustomCategory[]>('customCategories', []);
   const total = await countAll();
+  const fontScale = await getSetting<number>('fontScale', FONT_SCALE_DEFAULT);
+
+  // ---- 字體大小：拖的時候整個 App 即時變，放開才存 ----
+  const scalePct = h('span', { style: 'font-family:var(--mono)' }, `${Math.round(fontScale * 100)}%`);
+  const scaleRange = h('input', { type: 'range', className: 'scale-range', min: String(FONT_SCALE_MIN), max: String(FONT_SCALE_MAX), step: '0.05', value: String(fontScale) });
+  const setScale = (v: number) => { scaleRange.value = String(v); scalePct.textContent = `${Math.round(v * 100)}%`; applyFontScale(v); };
+  scaleRange.addEventListener('input', () => setScale(Number(scaleRange.value)));
+  scaleRange.addEventListener('change', () => { void setSetting('fontScale', Number(scaleRange.value)); });
 
   // ---- 週期規則 ----
   const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
@@ -230,6 +238,18 @@ export async function renderSettings(root: HTMLElement): Promise<void> {
   }
 
   root.replaceChildren(
+    h('div', { className: 'card' },
+      h('h2', {}, '字體大小'),
+      h('div', { className: 'scale-row' },
+        h('span', { className: 'a-sm' }, 'A'),
+        scaleRange,
+        h('span', { className: 'a-lg' }, 'A'),
+      ),
+      h('p', { className: 'hint', style: 'display:flex;justify-content:space-between;align-items:center' },
+        h('span', {}, '目前 ', scalePct, ' · 午餐 180 · 本月已花 12,340'),
+        h('button', { className: 'btn tiny', type: 'button', onClick: () => { setScale(FONT_SCALE_DEFAULT); void setSetting('fontScale', FONT_SCALE_DEFAULT); } }, '恢復預設'),
+      ),
+    ),
     h('div', { className: 'card' },
       h('h2', {}, '你的資料在哪裡'),
       h('p', { className: 'small', style: 'margin:0;line-height:1.75' },

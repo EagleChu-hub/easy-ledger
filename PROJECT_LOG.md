@@ -5,7 +5,7 @@
 ## 一句話定位
 零邊際成本的大眾記帳 PWA：打一句話記帳、資料只在使用者瀏覽器、「問 AI」是把摘要文字分享到使用者自己的 AI App。營運者不付任何 AI／伺服器費用。
 
-## 現況（2026-09-20，v0.3.1）
+## 現況（2026-09-21，v0.3.3）
 - 上線：https://eaglechu-hub.github.io/easy-ledger/ ；repo `EagleChu-hub/easy-ledger`（公開）
 - push `main` → `.github/workflows/deploy.yml` 自動 `npm test` → `GH_PAGES=1 npm run build` → Pages。約 1 分鐘
 - 101 個 vitest 全綠；`npm run build` 前會跑 `scripts/clean-dist.mjs`
@@ -46,6 +46,7 @@ src/
 3. **瀏覽器工具的 Return 鍵**：Claude 瀏覽器面板送的 Return 是 `key:""`，不是 `Enter`；App 的 Enter 存檔要用 `new KeyboardEvent('keydown',{key:'Enter'})` 驗。
 4. **Dexie EntityTable.add 回傳型別**是 `number|undefined`，要 cast。
 5. **PDF（fitz.Story）**：前幾頁 h2 底色會在後頁同座標重播成 3–12pt 矮碎片蓋住文字，skill 的 `strip_bleed_fills` 只清頁首抓不到。`docs/make_manual.py` 的 `strip_stray_bars`：h2 顏色＋高度≤12pt＋沒包住任何文字 → redaction，且要**迴圈到清不出東西**（部分覆蓋會切剩一段）。跨頁表格檢查要先 `html.unescape`，否則 `&nbsp;` 讓列文字對不上而漏報。
+7. **字級縮放**：`font-size` 全部是 rem、由 `html{font-size:var(--fs)}` 控制；padding／高度維持 px。放大時 `.amount-block` 要 `max-width:48%`、金額字 `min(2.125rem,12vw)`，否則句子預覽被擠成一字一行（跟坑 1 同一種症狀）。
 6. **CJK 空白壓縮**會吃掉「第 1 步　標題」的全形空白與範例句「上週三 電影 300」的空格 → 標題用冒號、範例用 `&nbsp;`。
 
 ## 驗證慣例（交付時分「已完成／未完成／做不到」）
@@ -62,3 +63,4 @@ src/
 - 09-19 查證 Perplexity 結論與 6 個 GitHub 專案（全部不能直接用）→ 決定自建 → v0.1（46 測試）
 - 09-19 套用 Claude Design 介面 → v0.2；建 repo、GitHub Pages 上線
 - 09-20 相對日期詞＋週期規則 → v0.3.0；規則就地編輯＋使用說明書 PDF → v0.3.1
+- 09-21 說明書第 3 步改小三看得懂；「🎤 可用語音」提示字改成真的 Web Speech 按鈕 → v0.3.2；字體大小滑軌（font-size 全改 rem、`--fs` 變數、settings 表 `fontScale`）→ v0.3.3
