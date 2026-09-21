@@ -284,11 +284,45 @@ export async function renderRecord(root: HTMLElement): Promise<void> {
     }
   });
 
+  // ---- 語音：用瀏覽器內建的 Web Speech API（Chrome/Safari 有，Firefox 沒有），不經任何自家伺服器 ----
+  const SR = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
+  const micBtn = h('button', { type: 'button', className: 'mic-btn', title: '按一下用說的' }, SR ? '🎤 用說的' : '🎤 用鍵盤的麥克風');
+  let rec: any = null;
+  micBtn.addEventListener('click', () => {
+    if (!SR) { toast('這個瀏覽器不支援語音，請點輸入框後用鍵盤上的麥克風', 3500); input.focus(); return; }
+    if (rec) { rec.stop(); return; }
+    rec = new SR();
+    rec.lang = 'zh-TW';
+    rec.interimResults = true;
+    rec.maxAlternatives = 1;
+    micBtn.textContent = '🎤 聽著…（再按一下停）';
+    micBtn.classList.add('listening');
+    rec.onresult = (e: any) => {
+      let text = '';
+      for (let i = 0; i < e.results.length; i++) text += e.results[i][0].transcript;
+      input.value = text.trim();
+      picked = null;
+      runParse();
+    };
+    rec.onerror = (e: any) => {
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') toast('麥克風被擋住了：請到瀏覽器設定允許這個網站使用麥克風', 4000);
+      else if (e.error === 'no-speech') toast('沒聽到聲音，再試一次', 2500);
+      else if (e.error !== 'aborted') toast(`語音出錯：${e.error}`, 3000);
+    };
+    rec.onend = () => {
+      rec = null;
+      micBtn.textContent = '🎤 用說的';
+      micBtn.classList.remove('listening');
+      if (input.value) input.focus();
+    };
+    try { rec.start(); } catch { rec = null; micBtn.textContent = '🎤 用說的'; toast('語音啟動失敗，請改用鍵盤上的麥克風', 3000); }
+  });
+
   root.replaceChildren(
     h('div', { className: 'card' },
       h('div', { className: 'compose-head' },
         h('span', { className: 'eyebrow' }, '說一句或打一句'),
-        h('span', { className: 'hintline' }, '🎤 可用語音'),
+        micBtn,
       ),
       input,
       h('div', { className: 'compose-rule' }),

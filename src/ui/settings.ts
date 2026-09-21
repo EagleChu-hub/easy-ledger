@@ -7,7 +7,7 @@ import { formatTWD } from '../stats';
 import type { RecurringRule } from '../types';
 import { categorySelect, getCategories, h, toast, todayStr, type CustomCategory } from './common';
 
-const APP_VERSION = '0.3.0';
+const APP_VERSION = '0.3.2';
 
 function downloadText(filename: string, text: string, mime: string): void {
   const blob = new Blob([text], { type: mime });
